@@ -1,0 +1,94 @@
+name: Auto Label Issues
+
+on:
+  issues:
+    types:
+      - opened
+      - edited
+
+permissions: {}
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.issue.number }}
+  cancel-in-progress: true
+
+jobs:
+  auto-label:
+    name: Auto Label Issues
+    if: ${{ github.event.issue.body && contains(github.event.issue.body, '### Plugin') && contains(github.event.issue.labels.*.name, 'Bug') }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
+    env:
+      ISSUE_BODY: ${{ github.event.issue.body }}
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+
+      - name: Extract Severity From Issue Body
+        id: extract-severity
+        run: |
+          USER_SELECTED_SEVERITY=$(printf '%s\n' "$ISSUE_BODY" | grep "### Severity" -A 2 | tail -n 1 | sed 's/[[:space:]]*$//')
+          SELECTED_SEVERITY=""
+
+          case "$USER_SELECTED_SEVERITY" in
+              "Wrong Formatting"|"Wrong Content"|"Missing Chapter"|"Missing Images"|"Can't Load Novels"|"Domain Changed")
+                  SELECTED_SEVERITY="$USER_SELECTED_SEVERITY"
+                  ;;
+              *)
+                  SELECTED_SEVERITY="Other"
+                  ;;
+          esac
+          echo "SELECTED_SEVERITY=$SELECTED_SEVERITY" >> "$GITHUB_ENV"
+
+      - name: Extract Plugin From Issue Body
+        id: parse-issue
+        run: |
+          SELECTED_PLUGIN=$(printf '%s\n' "$ISSUE_BODY" | awk '/### Plugin/ {f=1; next} f && NF {print; exit}' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
+
+          echo "SELECTED_PLUGIN=$SELECTED_PLUGIN" >> "$GITHUB_ENV"
+
+      - name: Extract Language From Issue Body
+        id: extract-language
+        run: |
+          SELECTED_LANGUAGE=$(printf '%s\n' "$ISSUE_BODY" | awk '/### Language/ {f=1; next} f && NF {print; exit}' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
+
+          echo "SELECTED_LANGUAGE=$SELECTED_LANGUAGE" >> "$GITHUB_ENV"
+
+      - name: Determine Corresponding Label
+        id: determine-label
+        run: |
+          LABELS="$(jq --arg keys "$SELECTED_PLUGIN" '. as $data | $keys | split(", ") as $keyList | $keyList[] | . as $key | if $data[$key] != null then "\($key)[\($data[$key])]" else empty end' ./.github/scripts/keys.json | sed 's/"//g' | sed 's/^[^:]*: //')"
+
+          # Add "Plugin: " in front of each label
+          LABELS_WITH_PREFIX="$(echo "$LABELS" | sed 's/^/Plugin: /')"
+
+          FINAL_LABELS="$LABELS_WITH_PREFIX"
+
+          if [ -n "$SELECTED_LANGUAGE" ]; then
+            FINAL_LABELS="${FINAL_LABELS}"$'\n'"Language: $SELECTED_LANGUAGE"
+          fi
+
+          # Save to GitHub environment
+          printf "LABELS<<EOF\n%s\nEOF\n" "$FINAL_LABELS" >> "$GITHUB_ENV"
+
+      - name: Add Labels To Issue
+        if: env.LABELS != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+          REPOSITORY: ${{ github.repository }}
+        run: |
+          jq -n \
+            --arg severity "$SELECTED_SEVERITY" \
+            --arg labels "$LABELS" \
+            '{labels: (["Severity: " + $severity] + ($labels | split("\n") | map(select(length > 0))))}' \
+            | gh api --method POST "repos/$REPOSITORY/issues/$ISSUE_NUMBER/labels" --input -
+
+      - name: Handle Missing Label
+        if: env.LABELS == ''
+        run: echo "No matching label found for the selected plugin."
