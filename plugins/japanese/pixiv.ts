@@ -52,6 +52,10 @@ type NovelBody = {
     order?: number;
     isConcluded?: boolean;
   } | null;
+  // Embedded-illustration pools (present only on illustrated novels).
+  textEmbeddedImages?: unknown;
+  imageResponseData?: unknown;
+  imageResponseOutData?: unknown;
 };
 
 function escapeHtml(text: string): string {
@@ -61,7 +65,28 @@ function escapeHtml(text: string): string {
     .replace(/>/g, '&gt;');
 }
 
-function novelContentToHtml(content: string): string {
+// [[rb:BASE > RUBY]] → <ruby>BASE<rt>RUBY</rt></ruby>, segments escaped
+// individually so the markup's own `>` never leaks into output.
+function renderRichLine(line: string): string {
+  const out: string[] = [];
+  const rubyRe = /\[\[rb:(.+?) > (.+?)\]\]/g;
+  let last = 0;
+  let m: RegExpExecArray | null;
+  while ((m = rubyRe.exec(line)) !== null) {
+    out.push(escapeHtml(line.slice(last, m.index)));
+    out.push(
+      '<ruby>' + escapeHtml(m[1]) + '<rt>' + escapeHtml(m[2]) + '</rt></ruby>',
+    );
+    last = m.index + m[0].length;
+  }
+  out.push(escapeHtml(line.slice(last)));
+  return out.join('');
+}
+
+function novelContentToHtml(
+  content: string,
+  images?: Record<string, string>,
+): string {
   const parts: string[] = [];
   const blocks = content.split('[newpage]');
   for (let b = 0; b < blocks.length; b++) {
@@ -69,17 +94,105 @@ function novelContentToHtml(content: string): string {
     const lines = blocks[b].split('\n');
     for (let i = 0; i < lines.length; i++) {
       const line = lines[i];
-      if (!line.trim()) continue;
+      // Preserve the author's blank lines (paragraph spacing) instead of
+      // collapsing paragraphs together.
+      if (!line.trim()) {
+        parts.push('<p><br></p>');
+        continue;
+      }
       const chapterMatch = line.match(/^\[chapter:(.*)\]$/);
       if (chapterMatch) {
         parts.push('<h2>' + escapeHtml(chapterMatch[1].trim()) + '</h2>');
         continue;
       }
-      if (/^\[pixivimage:[^\]]+\]$/.test(line.trim())) continue;
-      parts.push('<p>' + escapeHtml(line) + '</p>');
+      // Embedded illustration: render when the ajax payload maps the id to
+      // a file, otherwise link the artwork page instead of dropping it.
+      const imgMatch = line.trim().match(/^\[pixivimage:([^\]]+)\]$/);
+      if (imgMatch) {
+        const imgId = imgMatch[1].trim();
+        const imgUrl = (images && images[imgId]) || '';
+        if (imgUrl) {
+          parts.push('<p><img src="' + escapeHtml(imgUrl) + '"/></p>');
+        } else if (imgId) {
+          parts.push(
+            '<p><a href="https://www.pixiv.net/artworks/' +
+              escapeHtml(imgId) +
+              '">[画像]</a></p>',
+          );
+        }
+        continue;
+      }
+      parts.push('<p>' + renderRichLine(line) + '</p>');
     }
   }
   return parts.join('');
+}
+
+// Collect novel-image id → file-url mappings from the ajax payload pools.
+// Shapes vary (arrays of {id,url,...} or id-keyed objects, sometimes with a
+// nested urls object), so accept anything that looks like an id/url pair.
+function pickImageUrl(value: unknown): string {
+  if (typeof value === 'string') return value;
+  if (value && typeof value === 'object') {
+    const o = value as Record<string, unknown>;
+    for (const key of [
+      'original',
+      'master',
+      'regular',
+      'small',
+      'thumb',
+      'url',
+    ]) {
+      const v = o[key];
+      if (typeof v === 'string' && v) return v;
+    }
+    const urls = o['urls'];
+    if (urls && typeof urls === 'object') return pickImageUrl(urls);
+  }
+  return '';
+}
+
+function collectNovelImages(body: NovelBody): Record<string, string> {
+  const map: Record<string, string> = {};
+  const add = (id: unknown, url: unknown) => {
+    if (
+      (typeof id === 'string' || typeof id === 'number') &&
+      typeof url === 'string' &&
+      url
+    ) {
+      map[String(id)] = url;
+    }
+  };
+  const pools = [
+    body.textEmbeddedImages,
+    body.imageResponseData,
+    body.imageResponseOutData,
+  ];
+  for (const pool of pools) {
+    if (!pool || typeof pool !== 'object') continue;
+    if (Array.isArray(pool)) {
+      for (const entry of pool) {
+        if (!entry || typeof entry !== 'object') continue;
+        const o = entry as Record<string, unknown>;
+        add(
+          o['id'] ?? o['novelImageId'] ?? o['illustId'],
+          pickImageUrl(o['url'] ?? o['urls'] ?? o['imageUrl'] ?? entry),
+        );
+      }
+    } else {
+      for (const [key, value] of Object.entries(pool)) {
+        add(key, pickImageUrl(value));
+        if (value && typeof value === 'object') {
+          const o = value as Record<string, unknown>;
+          add(
+            o['id'] ?? o['novelImageId'] ?? o['illustId'],
+            pickImageUrl(o['url'] ?? o['urls'] ?? o['imageUrl']),
+          );
+        }
+      }
+    }
+  }
+  return map;
 }
 
 // Pixiv lists every episode of a series as its own hit sharing one seriesId,
@@ -99,7 +212,7 @@ class Pixiv implements Plugin.PluginBase {
   name = 'Pixiv';
   icon = 'src/ja/pixiv/logo.png';
   site = 'https://www.pixiv.net';
-  version = '1.0.2';
+  version = '1.0.3';
   imageRequestInit: Plugin.ImageRequestInit = {
     headers: {
       Referer: 'https://www.pixiv.net/',
@@ -291,7 +404,7 @@ class Pixiv implements Plugin.PluginBase {
       '<h1>' +
       escapeHtml(body.title || '') +
       '</h1>' +
-      novelContentToHtml(body.content)
+      novelContentToHtml(body.content, collectNovelImages(body))
     );
   }
 

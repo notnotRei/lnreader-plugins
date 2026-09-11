@@ -10,14 +10,16 @@ const SORTS: Record<string, string> = {
   hot: '/hot/stored',
   rated: '/rated/stored',
   discover: '/discover/stored',
-  new: '/newest/new/',
-  old: '/newest/old/',
-  abc: '/newest/abc/',
-  zyx: '/newest/zyx/',
-  authaz: '/newest/authaz/',
-  authza: '/newest/authza/',
-  pubnew: '/newest/pubnew/',
-  pubold: '/newest/pubold/',
+  // No trailing slashes: the site 308-redirects them to http, which OkHttp
+  // will not follow back up to https (Latest came back empty on-device).
+  new: '/newest/new',
+  old: '/newest/old',
+  abc: '/newest/abc',
+  zyx: '/newest/zyx',
+  authaz: '/newest/authaz',
+  authza: '/newest/authza',
+  pubnew: '/newest/pubnew',
+  pubold: '/newest/pubold',
 };
 
 class Moelibrary implements Plugin.PluginBase {
@@ -25,7 +27,7 @@ class Moelibrary implements Plugin.PluginBase {
   name = 'Moelibrary';
   icon = 'src/jp/moelibrary/logo.png';
   site = 'https://books.moelibrary.cc';
-  version = '1.0.2';
+  version = '1.0.3';
 
   private absolutize(url: string | undefined): string | undefined {
     if (!url) return undefined;
@@ -60,9 +62,11 @@ class Moelibrary implements Plugin.PluginBase {
     const base = SORTS[source] || SORTS.books;
     if (base === '/') return this.site + (page > 1 ? '/page/' + page : '/');
     if (base.startsWith('/newest/')) {
-      return this.site + base + (page > 1 ? '1/' + page : '');
+      return this.site + base + (page > 1 ? '/1/' + page : '');
     }
-    return this.site + base;
+    // Hot/rated/discover top lists paginate as base/page (verified live);
+    // without it every page repeated page 1 and the app stalled on dupes.
+    return this.site + base + (page > 1 ? '/' + page : '');
   }
 
   async popularNovels(
