@@ -12,7 +12,10 @@ const SORTS: Record<string, string> = {
   discover: '/discover/stored',
   // No trailing slashes: the site 308-redirects them to http, which OkHttp
   // will not follow back up to https (Latest came back empty on-device).
-  new: '/newest/new',
+  // 'new' tracks publication date (/newest/pubnew), not library-add date:
+  // recently-added is already covered by Books (/), and users expect
+  // Newest/Latest to mean new releases (this also feeds showLatestNovels).
+  new: '/newest/pubnew',
   old: '/newest/old',
   abc: '/newest/abc',
   zyx: '/newest/zyx',
@@ -27,7 +30,7 @@ class Moelibrary implements Plugin.PluginBase {
   name = 'Moelibrary';
   icon = 'src/jp/moelibrary/logo.png';
   site = 'https://books.moelibrary.cc';
-  version = '1.0.3';
+  version = '1.0.4';
 
   private absolutize(url: string | undefined): string | undefined {
     if (!url) return undefined;
@@ -42,6 +45,10 @@ class Moelibrary implements Plugin.PluginBase {
     const seen = new Set<string>();
     loadedCheerio('div.book').each((_, element) => {
       const card = loadedCheerio(element);
+      // Skip the "Discover (Random Books)" block: it renders 4 random books
+      // at the top of every listing page, so including it made every browse
+      // refresh look like only the first 4 entries ever update.
+      if (card.closest('.random-books').length) return;
       const anchor = card.find('a[href^="/book/"]').first();
       const href = anchor.attr('href');
       if (!href || seen.has(href)) return;
@@ -64,9 +71,10 @@ class Moelibrary implements Plugin.PluginBase {
     if (base.startsWith('/newest/')) {
       return this.site + base + (page > 1 ? '/1/' + page : '');
     }
-    // Hot/rated/discover top lists paginate as base/page (verified live);
-    // without it every page repeated page 1 and the app stalled on dupes.
-    return this.site + base + (page > 1 ? '/' + page : '');
+    // The /view/sort family (hot/rated/discover) paginates as base/1/page —
+    // the same pattern the site's own Next links use (/newest/new/1/2).
+    // base/page (e.g. /rated/stored/2) silently repeats page 1 forever.
+    return this.site + base + (page > 1 ? '/1/' + page : '');
   }
 
   async popularNovels(
@@ -200,6 +208,7 @@ class Moelibrary implements Plugin.PluginBase {
         { label: 'Title Z-A', value: 'zyx' },
         { label: 'Author A-Z', value: 'authaz' },
         { label: 'Author Z-A', value: 'authza' },
+        { label: 'Oldest Published', value: 'pubold' },
       ],
     },
   } satisfies Filters;
