@@ -328,12 +328,128 @@ function extractNames(section: string | null): string[] {
   return out;
 }
 
+type LabelValue = { label: string; value: string };
+
+const GENRE_OPTIONS: LabelValue[] = [
+  { label: 'Action', value: 'action' },
+  { label: 'Adventure', value: 'adventure' },
+  { label: 'Comedy', value: 'comedy' },
+  { label: 'Drama', value: 'drama' },
+  { label: 'Fantasy', value: 'fantasy' },
+  { label: 'Harem', value: 'harem' },
+  { label: 'Horror', value: 'horror' },
+  { label: 'Isekai', value: 'isekai' },
+  { label: 'Josei', value: 'josei' },
+  { label: 'Martial Arts', value: 'martial-arts' },
+  { label: 'Mature', value: 'mature' },
+  { label: 'Mecha', value: 'mecha' },
+  { label: 'Mystery', value: 'mystery' },
+  { label: 'Psychological', value: 'psychological' },
+  { label: 'Reincarnation', value: 'reincarnation' },
+  { label: 'Romance', value: 'romance' },
+  { label: 'School Life', value: 'school-life' },
+  { label: 'Sci-Fi', value: 'sci-fi' },
+  { label: 'Seinen', value: 'seinen' },
+  { label: 'Shoujo', value: 'shoujo' },
+  { label: 'Shounen', value: 'shounen' },
+  { label: 'Slice of Life', value: 'slice-of-life' },
+  { label: 'Sports', value: 'sports' },
+  { label: 'Supernatural', value: 'supernatural' },
+  { label: 'Thriller', value: 'thriller' },
+  { label: 'Tragedy', value: 'tragedy' },
+  { label: 'Wuxia', value: 'wuxia' },
+  { label: 'Xianxia', value: 'xianxia' },
+  { label: 'Yaoi', value: 'yaoi' },
+  { label: 'Yuri', value: 'yuri' },
+  { label: 'Adult', value: 'adult' },
+  { label: 'Ecchi', value: 'ecchi' },
+  { label: 'Smut', value: 'smut' },
+  { label: 'Dark Fantasy', value: 'dark-fantasy' },
+  { label: 'Cultivation', value: 'cultivation' },
+  { label: 'Historical', value: 'historical' },
+  { label: 'Military', value: 'military' },
+  { label: 'System', value: 'system' },
+  { label: 'Regression', value: 'regression' },
+  { label: 'Apocalypse', value: 'apocalypse' },
+  { label: 'Murim', value: 'murim' },
+  { label: 'Kingdom Building', value: 'kingdom-building' },
+  { label: 'Tower Climbing', value: 'tower-climbing' },
+  { label: 'Revenge', value: 'revenge' },
+  { label: 'Overpowered', value: 'overpowered' },
+  { label: 'Transmigration', value: 'transmigration' },
+  { label: 'BL', value: 'bl' },
+  { label: 'GL', value: 'gl' },
+  { label: 'Omegaverse', value: 'omegaverse' },
+  { label: 'Political', value: 'political' },
+  { label: 'War', value: 'war' },
+  { label: 'Zombie', value: 'zombie' },
+  { label: 'Vampire', value: 'vampire' },
+  { label: 'Cyberpunk', value: 'cyberpunk' },
+  { label: 'Dystopia', value: 'dystopia' },
+  { label: 'Survival', value: 'survival' },
+  { label: 'Game World', value: 'game-world' },
+  { label: 'Virtual Reality', value: 'virtual-reality' },
+  { label: 'MMORPG', value: 'mmorpg' },
+  { label: 'Idol', value: 'idol' },
+  { label: 'Entertainment Industry', value: 'entertainment-industry' },
+  { label: 'Cooking', value: 'cooking' },
+  { label: 'Medical', value: 'medical' },
+  { label: 'Business', value: 'business' },
+  { label: 'Urban Fantasy', value: 'urban-fantasy' },
+  { label: 'Modern Fantasy', value: 'modern-fantasy' },
+];
+
+const TAG_OPTIONS: LabelValue[] = [
+  { label: 'Abandoned Children', value: 'abandoned-children' },
+  { label: 'Ability Steal', value: 'ability-steal' },
+  { label: 'Academy', value: 'academy' },
+  { label: 'Aristocracy', value: 'aristocracy' },
+  { label: 'Beautiful Female Lead', value: 'beautiful-female-lead' },
+  { label: 'Calm Protagonist', value: 'calm-protagonist' },
+  { label: 'First-time Intercourse', value: 'first-time-intercourse' },
+  { label: 'Game Elements', value: 'game-elements' },
+  { label: 'Hiding True Abilities', value: 'hiding-true-abilities' },
+  { label: 'Magic Beasts', value: 'magic-beasts' },
+  { label: 'Multiple POV', value: 'multiple-pov' },
+  { label: 'Obsessive Love', value: 'obsessive-love' },
+  { label: 'Summoning Magic', value: 'summoning-magic' },
+  { label: 'Weak to Strong', value: 'weak-to-strong' },
+  { label: 'Wizards', value: 'wizards' },
+  { label: 'Yandere', value: 'yandere' },
+  { label: 'Male Protagonist', value: 'male-protagonist' },
+  { label: 'Female Protagonist', value: 'female-protagonist' },
+  { label: 'Clever Protagonist', value: 'clever-protagonist' },
+  { label: 'Royalty', value: 'royalty' },
+  { label: 'Demons', value: 'demons' },
+  { label: 'Monsters', value: 'monsters' },
+  { label: 'Knights', value: 'knights' },
+  { label: 'Elves', value: 'elves' },
+  { label: 'Dragons', value: 'dragons' },
+  { label: 'Necromancer', value: 'necromancer' },
+  { label: 'Blacksmith', value: 'blacksmith' },
+  { label: 'Healer', value: 'healer' },
+  { label: 'Reincarnated in Game World', value: 'reincarnated-in-game-world' },
+  { label: 'Second Chance', value: 'second-chance' },
+  { label: 'Possessive Characters', value: 'possessive-characters' },
+  { label: 'Love Triangle', value: 'love-triangle' },
+  { label: 'Reverse Harem', value: 'reverse-harem' },
+  { label: 'Hidden Identity', value: 'hidden-identity' },
+  { label: 'Genius Protagonist', value: 'genius-protagonist' },
+  { label: 'Overpowered Protagonist', value: 'overpowered-protagonist' },
+  { label: 'Farming', value: 'farming' },
+  { label: 'Childcare', value: 'childcare' },
+  { label: 'Streaming', value: 'streaming' },
+  { label: 'Gambling', value: 'gambling' },
+  { label: 'Time Travel', value: 'time-travel' },
+  { label: 'Alternate History', value: 'alternate-history' },
+];
+
 class NovelDexPlugin implements Plugin.PluginBase {
   id = 'noveldex';
   name = 'NovelDex';
   icon = 'src/en/noveldex/icon.png';
   site = 'https://noveldex.io';
-  version = '1.0.0';
+  version = '1.0.1';
 
   imageRequestInit: Plugin.ImageRequestInit = {
     headers: {
@@ -437,32 +553,123 @@ class NovelDexPlugin implements Plugin.PluginBase {
     return url;
   }
 
-  private readFilterState(filters: {
-    sort: { value: string };
-    hasImages: { value: boolean };
-    minChapters: { value: string };
-    maxChapters: { value: string };
-    status: { value: string[] };
-    type: { value: string[] };
-    genres: { value: { include?: string[]; exclude?: string[] } };
-    tags: { value: { include?: string[]; exclude?: string[] } };
-  }): {
-    genres: { include?: string[]; exclude?: string[] };
-    tags: { include?: string[]; exclude?: string[] };
+  // Read one filter value by candidate keys. Some app bridges re-key
+  // filters from their labels (e.g. "Include Genre" -> "include_genre")
+  // and merge those alongside our own keys, so check the bridge-derived
+  // keys first and fall back to ours.
+  private filterValue(filters: unknown, keys: string[]): unknown {
+    if (!filters || typeof filters !== 'object') return undefined;
+    const obj = filters as Record<string, { value?: unknown } | null>;
+    for (const k of keys) {
+      const entry = obj[k];
+      if (entry !== undefined && entry !== null && entry.value !== undefined) {
+        return entry.value;
+      }
+    }
+    return undefined;
+  }
+
+  private pickerOptions(key: string): LabelValue[] {
+    const entry = (
+      this.filters as unknown as Record<string, { options?: LabelValue[] }>
+    )[key];
+    return (entry && entry.options) || [];
+  }
+
+  // Accept an API value directly, but also translate a display label back
+  // to its value (some bridges round-trip the label that was picked).
+  private normalizeOption(
+    raw: unknown,
+    options: LabelValue[],
+    fallback: string,
+  ): string {
+    if (Array.isArray(raw)) raw = raw.length ? raw[0] : undefined;
+    if (typeof raw === 'string') {
+      for (const o of options) {
+        if (o.value === raw) return raw;
+      }
+      for (const o of options) {
+        if (o.label === raw) return o.value;
+      }
+    }
+    return fallback;
+  }
+
+  private normalizeBool(raw: unknown, fallback = false): boolean {
+    if (typeof raw === 'boolean') return raw;
+    if (typeof raw === 'string') return raw === 'true' || raw === '1';
+    return fallback;
+  }
+
+  private normalizeText(raw: unknown): string {
+    return typeof raw === 'string' ? raw.trim() : '';
+  }
+
+  private readFilterState(filters: unknown): {
+    sort: string;
+    genres: { include: string[]; exclude: string[] };
+    tags: { include: string[]; exclude: string[] };
     types: string[];
     statuses: string[];
     minCh: string;
     maxCh: string;
     hasImages: boolean;
   } {
+    const status = this.normalizeOption(
+      this.filterValue(filters, ['status']),
+      this.pickerOptions('status'),
+      '',
+    );
+    const type = this.normalizeOption(
+      this.filterValue(filters, ['type']),
+      this.pickerOptions('type'),
+      '',
+    );
+    const genreInc = this.normalizeOption(
+      this.filterValue(filters, ['include_genre', 'genreInclude']),
+      this.pickerOptions('genreInclude'),
+      '',
+    );
+    const genreExc = this.normalizeOption(
+      this.filterValue(filters, ['exclude_genre', 'genreExclude']),
+      this.pickerOptions('genreExclude'),
+      '',
+    );
+    const tagInc = this.normalizeOption(
+      this.filterValue(filters, ['include_tag', 'tagInclude']),
+      this.pickerOptions('tagInclude'),
+      '',
+    );
+    const tagExc = this.normalizeOption(
+      this.filterValue(filters, ['exclude_tag', 'tagExclude']),
+      this.pickerOptions('tagExclude'),
+      '',
+    );
     return {
-      genres: filters.genres.value || {},
-      tags: filters.tags.value || {},
-      types: filters.type.value || [],
-      statuses: filters.status.value || [],
-      minCh: (filters.minChapters.value || '').trim(),
-      maxCh: (filters.maxChapters.value || '').trim(),
-      hasImages: !!filters.hasImages.value,
+      sort: this.normalizeOption(
+        this.filterValue(filters, ['sort']),
+        this.pickerOptions('sort'),
+        'popular',
+      ),
+      genres: {
+        include: genreInc ? [genreInc] : [],
+        exclude: genreExc ? [genreExc] : [],
+      },
+      tags: {
+        include: tagInc ? [tagInc] : [],
+        exclude: tagExc ? [tagExc] : [],
+      },
+      types: type ? [type] : [],
+      statuses: status ? [status] : [],
+      minCh: this.normalizeText(
+        this.filterValue(filters, ['min_chapters', 'minChapters']),
+      ),
+      maxCh: this.normalizeText(
+        this.filterValue(filters, ['max_chapters', 'maxChapters']),
+      ),
+      hasImages: this.normalizeBool(
+        this.filterValue(filters, ['has_images', 'hasImages']),
+      ),
     };
   }
 
@@ -827,7 +1034,7 @@ class NovelDexPlugin implements Plugin.PluginBase {
   ): Promise<Plugin.NovelItem[]> {
     const page = Math.max(1, pageNo || 1);
     const state = this.readFilterState(filters);
-    const sort = showLatestNovels ? '' : filters.sort.value || '';
+    const sort = showLatestNovels ? '' : state.sort;
     const url = this.buildSeriesUrl(page, sort, '', state);
     try {
       const res = await fetchApi(url);
@@ -878,6 +1085,53 @@ class NovelDexPlugin implements Plugin.PluginBase {
     return novel;
   }
 
+  private absolutizeUrl(url: string): string {
+    const s = (url || '').trim();
+    if (!s) return s;
+    if (/^https?:\/\//i.test(s)) return s;
+    if (s.indexOf('//') === 0) return 'https:' + s;
+    if (s.indexOf('data:') === 0) return s;
+    if (s.charAt(0) === '/') return this.site + s;
+    return this.site + '/' + s;
+  }
+
+  private absolutizeSrcset(srcset: string): string {
+    return srcset
+      .split(',')
+      .map(part => {
+        const pieces = part.trim().split(/\s+/);
+        if (!pieces[0]) return part;
+        pieces[0] = this.absolutizeUrl(pieces[0]);
+        return pieces.join(' ');
+      })
+      .join(', ');
+  }
+
+  // Chapter HTML ships <img> tags with site-relative URLs
+  // (e.g. /uploads/chapters/...); the app webview has no base URL to
+  // resolve them against, so rewrite every image reference to absolute.
+  private withAbsoluteImages(html: string): string {
+    if (!html || html.indexOf('<img') < 0) return html;
+    try {
+      const $ = loadCheerio(html);
+      $('img').each((_, el) => {
+        const img = $(el);
+        const src = img.attr('src');
+        if (src) {
+          img.attr('src', this.absolutizeUrl(src));
+        } else {
+          const lazy = img.attr('data-src') || img.attr('data-original');
+          if (lazy) img.attr('src', this.absolutizeUrl(lazy));
+        }
+        const srcset = img.attr('srcset');
+        if (srcset) img.attr('srcset', this.absolutizeSrcset(srcset));
+      });
+      return $('body').html() || $.html() || html;
+    } catch {
+      return html;
+    }
+  }
+
   async parseChapter(chapterPath: string): Promise<string> {
     const clean =
       chapterPath.charAt(0) === '/' ? chapterPath : '/' + chapterPath;
@@ -890,9 +1144,9 @@ class NovelDexPlugin implements Plugin.PluginBase {
         const rscBody = await rscRes.text();
         const resolved = await this.resolveRedirects(rscBody);
         const xor = extractFromXorEncryption(resolved.body);
-        if (xor) return xor;
+        if (xor) return this.withAbsoluteImages(xor);
         const rsc = extractFromRscBody(resolved.body);
-        if (rsc) return rsc;
+        if (rsc) return this.withAbsoluteImages(rsc);
       }
     } catch {
       // fall through to HTML
@@ -914,14 +1168,15 @@ class NovelDexPlugin implements Plugin.PluginBase {
       ];
       for (const selector of selectors) {
         const content = $(selector).first().html();
-        if (content && content.length > 50) return content;
+        if (content && content.length > 50)
+          return this.withAbsoluteImages(content);
       }
       const next = this.extractFromNextData(html);
-      if (next && next.length > 50) return next;
+      if (next && next.length > 50) return this.withAbsoluteImages(next);
       const xor = extractFromXorEncryption(html);
-      if (xor) return xor;
+      if (xor) return this.withAbsoluteImages(xor);
       const rsc = extractFromRscBody(html);
-      if (rsc) return rsc;
+      if (rsc) return this.withAbsoluteImages(rsc);
       return '';
     } catch {
       return '';
@@ -966,7 +1221,7 @@ class NovelDexPlugin implements Plugin.PluginBase {
     sort: {
       type: FilterTypes.Picker,
       label: 'Sort',
-      value: '',
+      value: 'popular',
       options: [
         { label: 'Recently Updated', value: '' },
         { label: 'Most Popular', value: 'popular' },
@@ -992,10 +1247,11 @@ class NovelDexPlugin implements Plugin.PluginBase {
       value: '',
     },
     status: {
-      type: FilterTypes.CheckboxGroup,
+      type: FilterTypes.Picker,
       label: 'Status',
-      value: [],
+      value: '',
       options: [
+        { label: 'All', value: '' },
         { label: 'Ongoing', value: 'ONGOING' },
         { label: 'Completed', value: 'COMPLETED' },
         { label: 'Dropped', value: 'DROPPED' },
@@ -1006,10 +1262,11 @@ class NovelDexPlugin implements Plugin.PluginBase {
       ],
     },
     type: {
-      type: FilterTypes.CheckboxGroup,
+      type: FilterTypes.Picker,
       label: 'Type',
-      value: [],
+      value: '',
       options: [
+        { label: 'All', value: '' },
         { label: 'Web Novel', value: 'WEB_NOVEL' },
         { label: 'Manhwa', value: 'MANHWA' },
         { label: 'Manga', value: 'MANGA' },
@@ -1017,130 +1274,29 @@ class NovelDexPlugin implements Plugin.PluginBase {
         { label: 'Webtoon', value: 'WEBTOON' },
       ],
     },
-    genres: {
-      type: FilterTypes.ExcludableCheckboxGroup,
-      label: 'Genres',
-      value: {},
-      options: [
-        { label: 'Action', value: 'action' },
-        { label: 'Adventure', value: 'adventure' },
-        { label: 'Comedy', value: 'comedy' },
-        { label: 'Drama', value: 'drama' },
-        { label: 'Fantasy', value: 'fantasy' },
-        { label: 'Harem', value: 'harem' },
-        { label: 'Horror', value: 'horror' },
-        { label: 'Isekai', value: 'isekai' },
-        { label: 'Josei', value: 'josei' },
-        { label: 'Martial Arts', value: 'martial-arts' },
-        { label: 'Mature', value: 'mature' },
-        { label: 'Mecha', value: 'mecha' },
-        { label: 'Mystery', value: 'mystery' },
-        { label: 'Psychological', value: 'psychological' },
-        { label: 'Reincarnation', value: 'reincarnation' },
-        { label: 'Romance', value: 'romance' },
-        { label: 'School Life', value: 'school-life' },
-        { label: 'Sci-Fi', value: 'sci-fi' },
-        { label: 'Seinen', value: 'seinen' },
-        { label: 'Shoujo', value: 'shoujo' },
-        { label: 'Shounen', value: 'shounen' },
-        { label: 'Slice of Life', value: 'slice-of-life' },
-        { label: 'Sports', value: 'sports' },
-        { label: 'Supernatural', value: 'supernatural' },
-        { label: 'Thriller', value: 'thriller' },
-        { label: 'Tragedy', value: 'tragedy' },
-        { label: 'Wuxia', value: 'wuxia' },
-        { label: 'Xianxia', value: 'xianxia' },
-        { label: 'Yaoi', value: 'yaoi' },
-        { label: 'Yuri', value: 'yuri' },
-        { label: 'Adult', value: 'adult' },
-        { label: 'Ecchi', value: 'ecchi' },
-        { label: 'Smut', value: 'smut' },
-        { label: 'Dark Fantasy', value: 'dark-fantasy' },
-        { label: 'Cultivation', value: 'cultivation' },
-        { label: 'Historical', value: 'historical' },
-        { label: 'Military', value: 'military' },
-        { label: 'System', value: 'system' },
-        { label: 'Regression', value: 'regression' },
-        { label: 'Apocalypse', value: 'apocalypse' },
-        { label: 'Murim', value: 'murim' },
-        { label: 'Kingdom Building', value: 'kingdom-building' },
-        { label: 'Tower Climbing', value: 'tower-climbing' },
-        { label: 'Revenge', value: 'revenge' },
-        { label: 'Overpowered', value: 'overpowered' },
-        { label: 'Transmigration', value: 'transmigration' },
-        { label: 'BL', value: 'bl' },
-        { label: 'GL', value: 'gl' },
-        { label: 'Omegaverse', value: 'omegaverse' },
-        { label: 'Political', value: 'political' },
-        { label: 'War', value: 'war' },
-        { label: 'Zombie', value: 'zombie' },
-        { label: 'Vampire', value: 'vampire' },
-        { label: 'Cyberpunk', value: 'cyberpunk' },
-        { label: 'Dystopia', value: 'dystopia' },
-        { label: 'Survival', value: 'survival' },
-        { label: 'Game World', value: 'game-world' },
-        { label: 'Virtual Reality', value: 'virtual-reality' },
-        { label: 'MMORPG', value: 'mmorpg' },
-        { label: 'Idol', value: 'idol' },
-        { label: 'Entertainment Industry', value: 'entertainment-industry' },
-        { label: 'Cooking', value: 'cooking' },
-        { label: 'Medical', value: 'medical' },
-        { label: 'Business', value: 'business' },
-        { label: 'Urban Fantasy', value: 'urban-fantasy' },
-        { label: 'Modern Fantasy', value: 'modern-fantasy' },
-      ],
+    genreInclude: {
+      type: FilterTypes.Picker,
+      label: 'Include Genre',
+      value: '',
+      options: [{ label: 'All', value: '' }, ...GENRE_OPTIONS],
     },
-    tags: {
-      type: FilterTypes.ExcludableCheckboxGroup,
-      label: 'Tags',
-      value: {},
-      options: [
-        { label: 'Abandoned Children', value: 'abandoned-children' },
-        { label: 'Ability Steal', value: 'ability-steal' },
-        { label: 'Academy', value: 'academy' },
-        { label: 'Aristocracy', value: 'aristocracy' },
-        { label: 'Beautiful Female Lead', value: 'beautiful-female-lead' },
-        { label: 'Calm Protagonist', value: 'calm-protagonist' },
-        { label: 'First-time Intercourse', value: 'first-time-intercourse' },
-        { label: 'Game Elements', value: 'game-elements' },
-        { label: 'Hiding True Abilities', value: 'hiding-true-abilities' },
-        { label: 'Magic Beasts', value: 'magic-beasts' },
-        { label: 'Multiple POV', value: 'multiple-pov' },
-        { label: 'Obsessive Love', value: 'obsessive-love' },
-        { label: 'Summoning Magic', value: 'summoning-magic' },
-        { label: 'Weak to Strong', value: 'weak-to-strong' },
-        { label: 'Wizards', value: 'wizards' },
-        { label: 'Yandere', value: 'yandere' },
-        { label: 'Male Protagonist', value: 'male-protagonist' },
-        { label: 'Female Protagonist', value: 'female-protagonist' },
-        { label: 'Clever Protagonist', value: 'clever-protagonist' },
-        { label: 'Royalty', value: 'royalty' },
-        { label: 'Demons', value: 'demons' },
-        { label: 'Monsters', value: 'monsters' },
-        { label: 'Knights', value: 'knights' },
-        { label: 'Elves', value: 'elves' },
-        { label: 'Dragons', value: 'dragons' },
-        { label: 'Necromancer', value: 'necromancer' },
-        { label: 'Blacksmith', value: 'blacksmith' },
-        { label: 'Healer', value: 'healer' },
-        {
-          label: 'Reincarnated in Game World',
-          value: 'reincarnated-in-game-world',
-        },
-        { label: 'Second Chance', value: 'second-chance' },
-        { label: 'Possessive Characters', value: 'possessive-characters' },
-        { label: 'Love Triangle', value: 'love-triangle' },
-        { label: 'Reverse Harem', value: 'reverse-harem' },
-        { label: 'Hidden Identity', value: 'hidden-identity' },
-        { label: 'Genius Protagonist', value: 'genius-protagonist' },
-        { label: 'Overpowered Protagonist', value: 'overpowered-protagonist' },
-        { label: 'Farming', value: 'farming' },
-        { label: 'Childcare', value: 'childcare' },
-        { label: 'Streaming', value: 'streaming' },
-        { label: 'Gambling', value: 'gambling' },
-        { label: 'Time Travel', value: 'time-travel' },
-        { label: 'Alternate History', value: 'alternate-history' },
-      ],
+    genreExclude: {
+      type: FilterTypes.Picker,
+      label: 'Exclude Genre',
+      value: '',
+      options: [{ label: 'None', value: '' }, ...GENRE_OPTIONS],
+    },
+    tagInclude: {
+      type: FilterTypes.Picker,
+      label: 'Include Tag',
+      value: '',
+      options: [{ label: 'All', value: '' }, ...TAG_OPTIONS],
+    },
+    tagExclude: {
+      type: FilterTypes.Picker,
+      label: 'Exclude Tag',
+      value: '',
+      options: [{ label: 'None', value: '' }, ...TAG_OPTIONS],
     },
   } satisfies Filters;
 }
