@@ -130,7 +130,7 @@ class LnCrawlerPlugin implements Plugin.PluginBase {
   name = 'LnCrawler';
   icon = 'src/en/lncrawler/icon.png';
   site = 'https://lncrawler.monster';
-  version = '1.0.0';
+  version = '1.0.1';
 
   imageRequestInit: Plugin.ImageRequestInit = {
     headers: {
@@ -248,6 +248,55 @@ class LnCrawlerPlugin implements Plugin.PluginBase {
     return best;
   }
 
+  // Read one filter value by candidate keys. Some app bridges re-key
+  // filters from their labels (e.g. "Sort By" -> "sort_by") and merge
+  // those alongside our own keys, so check the bridge-derived keys first
+  // and fall back to ours.
+  private filterValue(filters: unknown, keys: string[]): unknown {
+    if (!filters || typeof filters !== 'object') return undefined;
+    const obj = filters as Record<string, { value?: unknown } | null>;
+    for (const k of keys) {
+      const entry = obj[k];
+      if (entry !== undefined && entry !== null && entry.value !== undefined) {
+        return entry.value;
+      }
+    }
+    return undefined;
+  }
+
+  private pickerOptions(key: string): { label: string; value: string }[] {
+    const entry = (
+      this.filters as unknown as Record<
+        string,
+        { options?: { label: string; value: string }[] }
+      >
+    )[key];
+    return (entry && entry.options) || [];
+  }
+
+  // Accept an API value directly, but also translate a display label back
+  // to its value (some bridges round-trip the label that was picked).
+  private normalizeOption(
+    raw: unknown,
+    options: { label: string; value: string }[],
+    fallback: string,
+  ): string {
+    if (Array.isArray(raw)) raw = raw.length ? raw[0] : undefined;
+    if (typeof raw === 'string') {
+      for (const o of options) {
+        if (o.value === raw) return raw;
+      }
+      for (const o of options) {
+        if (o.label === raw) return o.value;
+      }
+    }
+    return fallback;
+  }
+
+  private normalizeText(raw: unknown): string {
+    return typeof raw === 'string' ? raw.trim() : '';
+  }
+
   async popularNovels(
     pageNo: number,
     {
@@ -258,20 +307,62 @@ class LnCrawlerPlugin implements Plugin.PluginBase {
     const page = Math.max(1, pageNo || 1);
     const sortBy = showLatestNovels
       ? 'last_updated'
-      : filters.sortBy.value || 'popularity';
+      : this.normalizeOption(
+          this.filterValue(filters, ['sort_by', 'sortBy']),
+          this.pickerOptions('sortBy'),
+          'popularity',
+        );
     const sortOrder = showLatestNovels
       ? 'desc'
-      : filters.sortOrder.value || 'desc';
+      : this.normalizeOption(
+          this.filterValue(filters, ['order', 'sortOrder']),
+          this.pickerOptions('sortOrder'),
+          'desc',
+        );
     const url = this.buildSearchUrl(
       page,
       '',
       sortBy,
       sortOrder,
-      (filters.language.value || '').trim(),
-      (filters.minRating.value || '').trim(),
-      splitCsv(filters.includeTags.value || ''),
-      splitCsv(filters.excludeTags.value || ''),
-      splitCsv(filters.authors.value || ''),
+      this.normalizeOption(
+        this.filterValue(filters, ['language']),
+        this.pickerOptions('language'),
+        '',
+      ),
+      this.normalizeText(
+        this.filterValue(filters, [
+          'minimum_rating_(0-5)',
+          'minimum_rating (0-5)',
+          'minRating',
+        ]),
+      ),
+      splitCsv(
+        this.normalizeText(
+          this.filterValue(filters, [
+            'include_tags_(comma-separated)',
+            'include_tags (comma-separated)',
+            'includeTags',
+          ]),
+        ),
+      ),
+      splitCsv(
+        this.normalizeText(
+          this.filterValue(filters, [
+            'exclude_tags_(comma-separated)',
+            'exclude_tags (comma-separated)',
+            'excludeTags',
+          ]),
+        ),
+      ),
+      splitCsv(
+        this.normalizeText(
+          this.filterValue(filters, [
+            'authors_(comma-separated)',
+            'authors (comma-separated)',
+            'authors',
+          ]),
+        ),
+      ),
     );
     try {
       const res = await fetchApi(url);
