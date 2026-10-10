@@ -23,6 +23,7 @@ type Chapter = {
   chapterIdx: number;
   title: string;
   updateTime?: number;
+  wordCount?: number;
 };
 type Reader = {
   bookId: string;
@@ -32,6 +33,7 @@ type Reader = {
   psvts: string;
 };
 type State = { reader?: Reader };
+type ApiResult = { succ?: number; errCode?: number };
 
 // WeRead uses MD5 for numeric reader IDs and ASCII response checksums.
 // Keep this local: the app runtime has no Node crypto module.
@@ -181,10 +183,15 @@ class WeRead implements Plugin.PluginBase {
   name = 'WeRead (微信读书)';
   icon = 'src/cn/weread/icon.png';
   site = 'https://weread.qq.com';
-  version = '1.0.1';
+  version = '1.0.2';
   imageRequestInit = { headers: { Referer: this.site + '/' } };
 
-  private async request(path: string, body?: Record<string, string | number>) {
+  private renewal?: Promise<boolean>;
+
+  private async request(
+    path: string,
+    body?: Record<string, string | number | boolean>,
+  ) {
     const response = await fetchApi(this.resolveUrl(path), {
       headers: {
         Referer: this.site + '/',
@@ -202,6 +209,44 @@ class WeRead implements Plugin.PluginBase {
       );
     }
     return response;
+  }
+
+  private async renewSession(): Promise<boolean> {
+    // The host sends WebView cookies and persists renewal's Set-Cookie headers.
+    // Share in-flight renewal so concurrent downloads do not rotate tokens twice.
+    if (!this.renewal) {
+      this.renewal = (async () => {
+        const result = (await (
+          await this.request('/web/login/renewal', {
+            rq: encodeURIComponent('/web/book/read'),
+            ql: false,
+          })
+        ).json()) as ApiResult;
+        if (result.errCode === -2041) throw this.verificationError();
+        return result.succ === 1;
+      })();
+    }
+    const renewal = this.renewal;
+    try {
+      return await renewal;
+    } finally {
+      // Do not cache failure: signing in through WebView must work on retry.
+      if (this.renewal === renewal) this.renewal = undefined;
+    }
+  }
+
+  private verificationError(): Error {
+    return new Error(
+      'WeRead requires verification. Open this chapter in the app WebView, complete the verification, and retry.',
+    );
+  }
+
+  private accessError(authenticated: boolean): Error {
+    return new Error(
+      authenticated
+        ? 'WeRead returned only a preview or no chapter text for the renewed session. Confirm this account can read the full chapter in the app WebView; membership or purchase may be required.'
+        : 'WeRead returned only a preview or no chapter text. Sign in again through the app WebView with an account that can read the full chapter, then retry.',
+    );
   }
 
   private async reader(path: string): Promise<Reader> {
@@ -327,6 +372,27 @@ class WeRead implements Plugin.PluginBase {
     ) {
       throw new Error('Invalid WeRead chapter URL.');
     }
+    // An anonymous renewal failure must not prevent guest-accessible reading.
+    const authenticated = await this.renewSession();
+    try {
+      return await this.readChapter(path, authenticated);
+    } catch (error) {
+      const code = (error as { errCode?: number }).errCode;
+      if (code !== -2010 && code !== -2012) throw error;
+      // Match the web client's bounded retry, refreshing SSR tokens as well.
+      if (!(await this.renewSession())) {
+        throw new Error(
+          'WeRead login expired or is missing. Sign in again through the app WebView and retry.',
+        );
+      }
+      return this.readChapter(path, true);
+    }
+  }
+
+  private async readChapter(
+    path: string,
+    authenticated: boolean,
+  ): Promise<string> {
     const reader = await this.reader(path);
     const chapter = reader.chapterInfos.find(item =>
       path.endsWith('k' + readerId(item.chapterUid)),
@@ -358,9 +424,17 @@ class WeRead implements Plugin.PluginBase {
           )
         ).text();
         if (!payload || payload.trim().startsWith('{')) {
-          throw new Error(
-            'WeRead did not provide chapter text. Open this chapter in WebView, sign in, and check that your account can read it.',
-          );
+          const result = payload ? (JSON.parse(payload) as ApiResult) : {};
+          if (result.errCode === -2041) throw this.verificationError();
+          if ([-2010, -2012, -2013].includes(result.errCode || 0)) {
+            throw Object.assign(
+              new Error(
+                'WeRead login expired or is missing. Sign in again through the app WebView and retry.',
+              ),
+              { errCode: result.errCode },
+            );
+          }
+          throw this.accessError(authenticated);
         }
         if (
           payload.length <= 32 ||
@@ -373,7 +447,16 @@ class WeRead implements Plugin.PluginBase {
     );
     const content = decodeContent(parts.join(''));
     if (!content.trim() || content === '...')
-      throw new Error('This chapter requires access through WeRead.');
+      throw this.accessError(authenticated);
+    // Restricted responses can pass the checksum but contain only a short,
+    // plain-text excerpt rather than the full EPUB/ TXT chapter.
+    if (
+      content.trim().endsWith('...') &&
+      !/<(?:html|body|p|div|h[1-6])(?:\s|>)/i.test(content) &&
+      (format === 'epub' || (chapter.wordCount || 0) > content.length)
+    ) {
+      throw this.accessError(authenticated);
+    }
     if (format === 'txt') {
       const $ = loadCheerio('<div></div>');
       return content

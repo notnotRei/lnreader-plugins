@@ -14,6 +14,11 @@ and preview limits. The plugin does not purchase or unlock chapters. An empty or
 restricted response produces an explicit error instead of saving an empty chapter
 or the login screen as book text.
 
+Some restricted chapters return a checksum-valid, short plain-text excerpt
+ending in `...` rather than an empty response. The plugin rejects those excerpts
+instead of treating them as complete chapters. Full guest-accessible chapters
+are returned without truncation.
+
 Guest preview reading was verified with Playwright and the live checker. The
 reader initializes an encoded client timestamp (`pc`) when it loads; using the
 server-rendered placeholder (`pclts: 0`) instead causes empty JSON responses even
@@ -24,6 +29,19 @@ Reading restricted chapters with an authenticated app session still needs
 verification: open the chapter on WeRead in the app's WebView, sign in, confirm
 the account can read it there, and retry in the app. Do not paste account cookies
 into source code or test logs.
+
+Before loading a chapter, the plugin calls WeRead's web session renewal endpoint.
+The app must share WebView cookies with plugin requests and save response
+`Set-Cookie` headers; no account cookies are stored in the plugin. Concurrent
+chapter loads share an in-flight renewal. An unsuccessful anonymous renewal
+still permits guest-accessible chapters. Explicit expired-session API responses
+trigger at most one renewal/retry with fresh reader data. Verification challenges
+must be completed in WebView, not bypassed by the plugin.
+
+Errors distinguish a missing/expired login from a restricted response after
+successful renewal. Renewal does not grant access to books the account cannot
+read. Sign in inside the app's WebView, not a separate browser whose cookies are
+not shared with the app.
 
 ## Validation
 
