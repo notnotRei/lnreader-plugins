@@ -86,7 +86,7 @@ class KakuyomuPlugin implements Plugin.PluginBase {
   name = 'kakuyomu';
   icon = 'src/jp/kakuyomu/icon.png';
   site = 'https://kakuyomu.jp';
-  version = '1.2.0';
+  version = '1.2.1';
   filters = {
     genre: {
       type: FilterTypes.Picker,
@@ -380,11 +380,19 @@ class KakuyomuPlugin implements Plugin.PluginBase {
     const episodeTitle = $('.widget-episodeTitle').html() || '';
     const episodeBody = $('.widget-episodeBody').html() || '';
     if (!episodeBody) return '';
+    // Authors also use long runs of full-width spaces for manual alignment.
+    const chapterBody = episodeBody.replace(
+      /((?:\u3000|&#x3000;|&#12288;){2,})/gi,
+      '<span style="line-break: anywhere;">$1</span>',
+    );
+    // Long URLs in author notes can expand the initial WebView viewport and
+    // leave the reader paginating with dimensions larger than the screen.
     const chapterText =
-      '<div>' +
+      '<div style="overflow-wrap: anywhere;">' +
       (episodeTitle ? '<h2>' + episodeTitle + '</h2>' : '') +
-      '</div><p><br><br></p>' +
-      episodeBody;
+      '<p><br><br></p>' +
+      chapterBody +
+      '</div>';
     return chapterText;
   }
 
