@@ -23,12 +23,27 @@ type SearchResponse = {
 // still yields content.
 const BROWSE_TERMS = ['a', 'e', 'i', 'の', '物', '学', '人', '王', '魔', '剣'];
 
+// epub.moe is fronted by Tencent EdgeOne, which rejects bare/bot User-Agent
+// values (exactly `Mozilla/5.0`, curl, python-requests) with a 567
+// "Restricted Access" page. Always send a full browser User-Agent.
+const BROWSER_UA =
+  'Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Mobile Safari/537.36';
+
 class Epubmoe implements Plugin.PluginBase {
   id = 'epubmoe';
   name = 'Epub.moe';
   icon = 'src/multi/epubmoe/logo2.png';
   site = 'https://epub.moe';
-  version = '1.0.3';
+  version = '1.0.4';
+
+  // Covers live on cover.epub.moe behind the same EdgeOne rule, so image
+  // requests need the browser User-Agent too.
+  imageRequestInit = {
+    headers: {
+      'User-Agent': BROWSER_UA,
+      'Referer': 'https://epub.moe/',
+    },
+  };
 
   private encodePath(md5: string, title: string, author: string): string {
     return (
@@ -61,7 +76,12 @@ class Epubmoe implements Plugin.PluginBase {
     let url = this.site + '/api/search?q=' + encodeURIComponent(term);
     if (language && language !== 'all') url += '&language=' + language;
     try {
-      const res = await fetchApi(url);
+      const res = await fetchApi(url, {
+        headers: {
+          'User-Agent': BROWSER_UA,
+          'Referer': this.site + '/',
+        },
+      });
       const json = (await res.json()) as SearchResponse;
       if (!json || json.success === false || !Array.isArray(json.results)) {
         return [];
