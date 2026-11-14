@@ -1,7 +1,7 @@
 {
-  "name": "lnreader-plugins",
+  "name": "notnotrei-plugins",
   "version": "3.0.0",
-  "description": "Plugins repo for LNReader",
+  "description": "LNReader plugins for Chimahon, maintained by notnotrei",
   "main": "index.js",
   "type": "module",
   "scripts": {
@@ -26,7 +26,7 @@
     "check:plugin": "node scripts/live-check-plugin.js",
     "prepare": "husky"
   },
-  "author": "LNReader",
+  "author": "notnotRei",
   "license": "MIT",
   "dependencies": {
     "@fontsource/geist-mono": "^5.2.7",
