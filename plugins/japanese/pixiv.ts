@@ -212,7 +212,7 @@ class Pixiv implements Plugin.PluginBase {
   name = 'Pixiv';
   icon = 'src/ja/pixiv/logo.png';
   site = 'https://www.pixiv.net';
-  version = '1.0.3';
+  version = '1.0.4';
   imageRequestInit: Plugin.ImageRequestInit = {
     headers: {
       Referer: 'https://www.pixiv.net/',
@@ -228,16 +228,57 @@ class Pixiv implements Plugin.PluginBase {
     }
   }
 
+  /**
+   * Path segments of a stored path or full URL, ignoring query strings.
+   * Pixiv moved novel pages to /novel/show.php?id=<id>, so older library
+   * entries (/novel/<id>) and new ones must both parse.
+   */
+  private pathSegments(novelPath: string): string[] {
+    return novelPath
+      .split(/[?#]/)[0]
+      .replace(/^https?:\/\/[^/]+/i, '')
+      .replace(/^\/+|\/+$/g, '')
+      .split('/')
+      .filter(Boolean);
+  }
+
+  private queryId(novelPath: string): string {
+    const match = novelPath.match(/[?&]id=(\d+)/);
+    return match ? match[1] : '';
+  }
+
   private isSeriesPath(novelPath: string): boolean {
-    return novelPath.replace(/^\/|\/$/g, '').split('/')[0] === 'series';
+    const segments = this.pathSegments(novelPath);
+    return (
+      segments[0] === 'series' ||
+      (segments[0] === 'novel' && segments[1] === 'series')
+    );
   }
 
   private seriesIdFromPath(novelPath: string): string {
-    return novelPath.replace(/^\/|\/$/g, '').split('/')[1] || '';
+    const segments = this.pathSegments(novelPath);
+    if (segments[0] === 'series') return segments[1] || '';
+    if (segments[0] === 'novel' && segments[1] === 'series') {
+      return segments[2] || '';
+    }
+    return '';
   }
 
   private novelIdFromPath(novelPath: string): string {
-    return novelPath.replace(/^\/|\/$/g, '').split('/')[1] || '';
+    // New URL: /novel/show.php?id=<id>
+    const queryId = this.queryId(novelPath);
+    if (queryId) return queryId;
+
+    const segments = this.pathSegments(novelPath);
+    // Old URL: /novel/<id>
+    if (segments[0] === 'novel' && /^\d+$/.test(segments[1] || '')) {
+      return segments[1];
+    }
+    // Bare id or any other shape: use the last numeric segment.
+    for (let i = segments.length - 1; i >= 0; i--) {
+      if (/^\d+$/.test(segments[i])) return segments[i];
+    }
+    return '';
   }
 
   async popularNovels(
@@ -272,13 +313,13 @@ class Pixiv implements Plugin.PluginBase {
       if (entry.series_id) {
         novels.push({
           name: (entry.series_title || entry.title) + '',
-          path: '/series/' + entry.series_id,
+          path: '/novel/series/' + entry.series_id,
           cover: entry.url || defaultCover,
         });
       } else {
         novels.push({
           name: entry.title + '',
-          path: '/novel/' + entry.id,
+          path: '/novel/show.php?id=' + entry.id,
           cover: entry.url || defaultCover,
         });
       }
@@ -321,7 +362,7 @@ class Pixiv implements Plugin.PluginBase {
           name:
             ep.title ||
             'Episode ' + (ep.seriesContentOrder || chapters.length + 1),
-          path: '/novel/' + ep.id,
+          path: '/novel/show.php?id=' + ep.id,
           chapterNumber: ep.seriesContentOrder || chapters.length + 1,
         });
         if (
@@ -340,7 +381,7 @@ class Pixiv implements Plugin.PluginBase {
   async parseNovel(novelPath: string): Promise<Plugin.SourceNovel> {
     if (this.isSeriesPath(novelPath)) {
       const seriesId = this.seriesIdFromPath(novelPath);
-      const path = '/series/' + seriesId;
+      const path = '/novel/series/' + seriesId;
       const { chapters, info } = await this.seriesChapters(seriesId);
       const tags: string[] = [];
       const novel: Plugin.SourceNovel = {
@@ -362,7 +403,7 @@ class Pixiv implements Plugin.PluginBase {
     }
 
     const novelId = this.novelIdFromPath(novelPath);
-    const path = '/novel/' + novelId;
+    const path = '/novel/show.php?id=' + novelId;
     const json = (await this.getJson(
       API + '/novel/' + novelId + '?' + LANG,
     )) as { body?: NovelBody } | null;
@@ -394,7 +435,7 @@ class Pixiv implements Plugin.PluginBase {
 
   async parseChapter(chapterPath: string): Promise<string> {
     const novelId = this.novelIdFromPath(chapterPath);
-    if (!novelId || chapterPath.indexOf('/series/') === 0) return '';
+    if (!novelId || this.isSeriesPath(chapterPath)) return '';
     const json = (await this.getJson(
       API + '/novel/' + novelId + '?' + LANG,
     )) as { body?: NovelBody } | null;
@@ -433,13 +474,13 @@ class Pixiv implements Plugin.PluginBase {
       if (entry.seriesId) {
         novels.push({
           name: entry.seriesTitle || entry.title || entry.id,
-          path: '/series/' + entry.seriesId,
+          path: '/novel/series/' + entry.seriesId,
           cover: defaultCover,
         });
       } else {
         novels.push({
           name: entry.title || entry.id,
-          path: '/novel/' + entry.id,
+          path: '/novel/show.php?id=' + entry.id,
           cover: defaultCover,
         });
       }
@@ -449,11 +490,16 @@ class Pixiv implements Plugin.PluginBase {
 
   resolveUrl(path: string): string {
     if (/^https?:\/\//i.test(path)) return path;
-    const clean = '/' + path.replace(/^\/|\/$/g, '');
-    if (clean.indexOf('/series/') === 0) {
-      return this.site + '/novel/series/' + clean.split('/')[2];
+    if (this.isSeriesPath(path)) {
+      const seriesId = this.seriesIdFromPath(path);
+      return seriesId
+        ? this.site + '/novel/series/' + seriesId
+        : this.site + '/' + path.replace(/^\/+/, '');
     }
-    return this.site + '/novel/show.php?id=' + clean.split('/')[2];
+    const novelId = this.novelIdFromPath(path);
+    return novelId
+      ? this.site + '/novel/show.php?id=' + novelId
+      : this.site + '/' + path.replace(/^\/+/, '');
   }
 
   filters = {
